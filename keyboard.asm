@@ -1,16 +1,7 @@
 \ Acorn Atom as keyboard for System5
-\ (C)Roland Leurs 2024
-\ Version 1.0 September 2024
+\ (C)Roland Leurs 2024-2025
+\ Version 2.0 Februari 2025
 \ Keyboard scan routine
-
-\ Short wait routine
-.KFB8A
- ldx #6         \ load counter
-.KFB83
- jsr wait       \ wait 50ms
- dex            \ decrement counter
- bne KFB83      \ jump if nap isn't done
- rts            \ return
 
 \ Keyboard scan routine
 .KFE71
@@ -38,30 +29,8 @@ PLP             :\ FE90= 28          (
 BNE KFE76       :\ FE91= D0 E3       Pc
 RTS             :\ FE93= 60          `
 
-
-.KFE94
-.KFE9A
-bit &B002       \ check if REPT is pressed
-bvc KFEA4       \ yes, skip routine to wait for key release
-jsr KFE71       \ Perform a keyboard scan
-bcc KFE9A       \ If a key is pressed then wait because it's the previous key scan
-
-.KFEA4
-jsr KFB8A       \ Take a short nap
-
-.KFEA7
-jsr KFE71       \ Perform another scan
-bcc debounce    \ Jump if possible key is pressed
-lda &B801       \ Load output to System5
-ora #&80        \ Set "no key pressed" bit
-sta &B801       \ Write to System5
-
-.debounce
-jsr KFE71       \ Do another scan to eliminate a bouncing key
-bcs KFEA7       \ Jump again if there's no keypress now
-
-\ Here we have the keyboard scan code in the Y register
-
+\ Enter with the keyboard scan code in the Y register
+.scan2ascii
 cpy #5          \ Test the caps lock key
 beq setcapslock \ Set caps lock value
 tya             \ 
@@ -91,15 +60,21 @@ bpl setshiftlock
 lda capslock    \ Load current caps lock status
 eor #&80        \ Toggle status bit
 sta capslock    \ Store caps lock status
-jmp KFE94       \ Continue scanning
+lda #&00        \ clear shift lock
+sta shiftlock
+jsr ledstatus   \ update led status
+jmp KFE71       \ Continue scanning
 
 .setshiftlock
 lda shiftlock   \ Load current shift lock status
 eor #&80        \ Toggle status bit
 sta shiftlock   \ Store shift lock status
-jmp KFE94       \ Continue scanning
+lda #&00        \ clear caps lock
+sta capslock
+jsr ledstatus   \ update led status
+jmp KFE71       \ Continue scanning
 
-.wait           \ wait routine, using VIA timer 1
+.timer50        \ set timer for 50ms
 ; VIA_T1CL = &B804 ; timer 1 counter low
 ; VIA_T1CH = &B805 ; timer 1 counter high
 ; VIA_ACL  = &B80B ; Auxiliary Control register
@@ -112,10 +87,7 @@ lda #>50000     \ load high value for counter
 sta &B805
 lda #&00        \ set VIA ACL
 sta &B80B
-.wait4zero      \ waits until timer expires
-bit &B80D       \ load timer status
-bvc wait4zero   \ wait until timer expires
-rts             \ return
+rts
 
 
 .ascii \ table
@@ -123,16 +95,16 @@ rts             \ return
 \    &00,&01,&02,&03,&04,&05,&06,&07,&08,&09,&0A,&0B,&0C,&0D,&0E,&0F
 equb &20,&5B,&5C,&5D,&5E,&00,&08,&0A,&00,&00,&00,&00,&00,&0D,&00,&7F \ &00
 equb &30,&31,&32,&33,&34,&35,&36,&37,&38,&39,&3A,&3B,&2C,&2D,&2E,&2F \ &10
-equb &40,&41,&42,&43,&44,&45,&46,&47,&48,&49,&4A,&4B,&4C,&4D,&4E,&4F \ &20
-equb &50,&51,&52,&53,&54,&55,&56,&57,&58,&59,&5A,&1B,&00,&00,&00,&00 \ &30
+equb &60,&61,&62,&63,&64,&65,&66,&67,&68,&69,&6A,&6B,&6C,&6D,&6E,&6F \ &A0
+equb &70,&71,&72,&73,&74,&75,&76,&77,&78,&79,&7A,&1B,&00,&00,&00,&00 \ &B0
 equb &00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00 \ &40
 equb &00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00 \ &50
 equb &00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00 \ &60
 equb &00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00 \ &70
 equb &20,&7B,&7C,&7D,&7E,&00,&09,&0B,&00,&00,&00,&00,&00,&0D,&00,&7F \ &80
 equb &40,&21,&22,&23,&24,&25,&26,&27,&28,&29,&2A,&2B,&3C,&3D,&3E,&3F \ &90
-equb &60,&61,&62,&63,&64,&65,&66,&67,&68,&69,&6A,&6B,&6C,&6D,&6E,&6F \ &A0
-equb &70,&71,&72,&73,&74,&75,&76,&77,&78,&79,&7A,&00,&00,&00,&00,&00 \ &B0
+equb &40,&41,&42,&43,&44,&45,&46,&47,&48,&49,&4A,&4B,&4C,&4D,&4E,&4F \ &20
+equb &50,&51,&52,&53,&54,&55,&56,&57,&58,&59,&5A,&00,&00,&00,&00,&00 \ &30
 equb &00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00 \ &C0
 equb &00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00 \ &D0
 equb &00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00,&00 \ &E0
